@@ -8,9 +8,6 @@ from PIL import Image
 
 st.set_page_config(page_title="Análisis ABP Fútbol", layout="wide")
 
-from PIL import Image
-import plotly.graph_objects as go
-
 @st.cache_data
 def cargar_datos():
     archivo = "Prova ABP.xlsx"
@@ -21,19 +18,22 @@ def cargar_datos():
 def plot_campo_con_fondo(df, x_col, y_col, color_col=None, title="Zonas de ejecución sobre campo", campo_img_path="Campo xG.png"):
     img = Image.open(campo_img_path)
     fig = go.Figure()
+
+    # Añade imagen como fondo, correctamente alineada y con proporción 2.25 (180/80)
     fig.add_layout_image(
         dict(
             source=img,
             xref="x",
             yref="y",
-            x=0,
-            y=-80,        # esquina inferior izquierda
-            sizex=180,
-            sizey=80,
-            sizing="fill",
+            x=0,           # esquina izq
+            y=80,          # esquina sup
+            sizex=120,     # campo completo horizontal
+            sizey=80,      # campo completo vertical
+            sizing="stretch",
             layer="below"
         )
     )
+    # Añade puntos
     if color_col and color_col in df.columns:
         for tipo in df[color_col].dropna().unique():
             dft = df[df[color_col] == tipo]
@@ -52,18 +52,21 @@ def plot_campo_con_fondo(df, x_col, y_col, color_col=None, title="Zonas de ejecu
             marker=dict(size=10, color='red'),
             name="Ejecuciones"
         ))
-    fig.update_xaxes(range=[0, 180], showgrid=False, zeroline=False)
-    fig.update_yaxes(range=[0, 80], showgrid=False, zeroline=False, scaleanchor="x", scaleratio=1)
+    fig.update_xaxes(range=[-5, 125], constrain="domain")
+    fig.update_yaxes(range=[-5, 85], scaleanchor="x", scaleratio=1, constrain="domain")
+
+    # OCULTA líneas, ticks y números:
+    fig.update_xaxes(showgrid=False, showticklabels=False, visible=False)
+    fig.update_yaxes(showgrid=False, showticklabels=False, visible=False)    
     fig.update_layout(
         title=title,
         width=900,
-        height=400,
+        height=int(900 / 2.25),
         showlegend=True,
         plot_bgcolor="white",
         margin=dict(l=10, r=10, t=40, b=10)
     )
     return fig
-
 
 
 # ---- RECARGA MANUAL ----
@@ -77,17 +80,23 @@ df = cargar_datos()
 df['Jornada'] = pd.to_numeric(df['Jornada'], errors='coerce')
 temporadas = df['Temporada'].dropna().unique()
 tipos_abp = df['ABP_Tipo'].dropna().unique()
+ejecucion_tipos = df['Ejecucion_Tipo'].dropna().unique() if 'Ejecucion_Tipo' in df.columns else []
 jugadores = df['Jugador_Ejecutor'].dropna().unique()
+jugadores_objetivo = df['Jugador_Objetivo'].dropna().unique() if 'Jugador_Objetivo' in df.columns else []
+porteros_defensores = df['Portero_Defensor'].dropna().unique() if 'Portero_Defensor' in df.columns else []
 equipos_atacantes = df['Equipo_Atacante'].dropna().unique()
 equipos_defensores = df['Equipo_Defensor'].dropna().unique()
 tipo_tiro = df['Tiro'].dropna().unique()
+tipo_gol = df['Gol'].dropna().unique()
 jornada_min = int(df['Jornada'].min())
 jornada_max = int(df['Jornada'].max())
-fases = df['Momento_Resultado_Atacante'].dropna().unique() if 'Momento_Resultado_Atacante' in df.columns else []
-if 'GOL' in df.columns:
-    tipo_gol = df['GOL'].dropna().unique()
-else:
-    tipo_gol = []
+fases_atacante = df['Momento_Resultado_Atacante'].dropna().unique() if 'Momento_Resultado_Atacante' in df.columns else []
+fases_defensor = df['Momento_Resultado_Defensor'].dropna().unique() if 'Momento_Resultado_Defensor' in df.columns else []
+mitades_disponibles = df['Momento_Mitad'].dropna().unique() if 'Momento_Mitad' in df.columns else []
+situaciones_numericas_atac = df['Situacion_Numerica_Atacante'].dropna().unique() if 'Situacion_Numerica_Atacante' in df.columns else []
+situaciones_numericas_def = df['Situacion_Numerica_Defensor'].dropna().unique() if 'Situacion_Numerica_Defensor' in df.columns else []
+porteros_ataca = df['Portero_Ataca'].dropna().unique() if 'Portero_Ataca' in df.columns else []
+
 
 # ---- SIDEBAR DE NAVEGACIÓN ----
 st.sidebar.title("Navegación")
@@ -116,20 +125,110 @@ jornada_sel = st.sidebar.slider(
 )
 temporada_sel = st.sidebar.multiselect("Temporada", temporadas, default=list(temporadas))
 tipo_abp_sel = st.sidebar.multiselect("Tipo ABP", tipos_abp, default=list(tipos_abp))
-jugador_sel = st.sidebar.multiselect("Jugador ejecutor", jugadores, default=list(jugadores))
-tipo_tiro_sel = st.sidebar.multiselect("¿Acaba en tiro?", tipo_tiro, default=list(tipo_tiro))
-if len(tipo_gol) > 0:
-    tipo_gol_sel = st.sidebar.multiselect("¿Acaba en gol?", tipo_gol, default=list(tipo_gol))
+if len(ejecucion_tipos) > 0:
+    ejecucion_tipo_sel = st.sidebar.multiselect(
+        "Tipo de ejecución",
+        ejecucion_tipos,
+        default=list(ejecucion_tipos)
+    )
 else:
-    tipo_gol_sel = None
-if len(fases) > 0:
-    fase_sel = st.sidebar.multiselect("Fase de partido", fases, default=list(fases))
-else:
-    fase_sel = None
+    ejecucion_tipo_sel = None
 
-# --- Filtros de equipo atacante y defensor (globales) ---
+
+# ---- FILTRO DE MITAD DEL PARTIDO ----
+if len(mitades_disponibles) > 0:
+    mitad_sel = st.sidebar.multiselect(
+        "Mitad del partido",
+        mitades_disponibles,
+        default=list(mitades_disponibles),
+        key="mitad_partido"
+    )
+else:
+    mitad_sel = []
+
+# ---- TIMELINE DE MOMENTO DEL PARTIDO (DEPENDIENTE DE MITAD) ----
+franjas_primera = ["0-15", "16-30", "31-45", "EXTRA 1"]
+franjas_segunda = ["45-60", "61-75", "76-90", "EXTRA 2"]
+opciones_timeline = franjas_primera + franjas_segunda
+
+if 'Momento_Rango' in df.columns:
+    franjas_data = list(df['Momento_Rango'].dropna().unique())
+    if mitad_sel == ["Primera"]:
+        franjas_disponibles = [o for o in franjas_primera if o in franjas_data]
+    elif mitad_sel == ["Segunda"]:
+        franjas_disponibles = [o for o in franjas_segunda if o in franjas_data]
+    elif sorted(mitad_sel) == sorted(list(mitades_disponibles)):
+        franjas_disponibles = [o for o in opciones_timeline if o in franjas_data]
+    else:
+        franjas_disponibles = [o for o in opciones_timeline if o in franjas_data]
+else:
+    franjas_disponibles = []
+
+franja_sel = st.sidebar.multiselect(
+    "Franja(s) de tiempo",
+    franjas_disponibles,
+    default=franjas_disponibles,
+    key="franja_tiempo"
+)
+
 equipo_atacante_sel = st.sidebar.multiselect("Equipo Atacante", equipos_atacantes, default=list(equipos_atacantes))
 equipo_defensor_sel = st.sidebar.multiselect("Equipo Defensor", equipos_defensores, default=list(equipos_defensores))
+jugador_sel = st.sidebar.multiselect("Jugador ejecutor", jugadores, default=list(jugadores))
+if len(jugadores_objetivo) > 0:
+    jugador_objetivo_sel = st.sidebar.multiselect(
+        "Jugador objetivo",
+        jugadores_objetivo,
+        default=list(jugadores_objetivo)
+    )
+else:
+    jugador_objetivo_sel = None
+
+if len(porteros_defensores) > 0:
+    portero_defensor_sel = st.sidebar.multiselect(
+        "Portero defensor",
+        porteros_defensores,
+        default=list(porteros_defensores)
+    )
+else:
+    portero_defensor_sel = None
+if len(porteros_ataca) > 0:
+    portero_ataca_sel = st.sidebar.multiselect(
+        "Portero ataca",
+        porteros_ataca,
+        default=list(porteros_ataca)
+    )
+else:
+    portero_ataca_sel = None
+
+
+tipo_tiro_sel = st.sidebar.multiselect("¿Acaba en tiro?", tipo_tiro, default=list(tipo_tiro))
+tipo_gol_sel = st.sidebar.multiselect("¿Acaba en gol?", tipo_gol, default=list(tipo_gol))
+if len(fases_atacante) > 0:
+    fase_sel = st.sidebar.multiselect("Resultado atacante", fases_atacante, default=list(fases_atacante))
+else:
+    fase_sel = None
+if len(fases_defensor) > 0:
+    fase_sel = st.sidebar.multiselect("Resultado defensor", fases_defensor, default=list(fases_defensor))
+else:
+    fase_sel = None
+if len(situaciones_numericas_atac) > 0:
+    situacion_numerica_atac_sel = st.sidebar.multiselect(
+        "Situación numérica atacante",
+        situaciones_numericas_atac,
+        default=list(situaciones_numericas_atac)
+    )
+else:
+    situacion_numerica_atac_sel = None
+
+if len(situaciones_numericas_def) > 0:
+    situacion_numerica_def_sel = st.sidebar.multiselect(
+        "Situación numérica defensor",
+        situaciones_numericas_def,
+        default=list(situaciones_numericas_def)
+    )
+else:
+    situacion_numerica_def_sel = None
+
 
 # ---- FUNCIONES DE FILTRADO ----
 def aplicar_filtros(df):
@@ -139,15 +238,31 @@ def aplicar_filtros(df):
         df['Jornada'].between(jornada_sel[0], jornada_sel[1]) &
         df['Jugador_Ejecutor'].isin(jugador_sel) &
         df['Tiro'].isin(tipo_tiro_sel) &
+        df['Gol'].isin(tipo_gol_sel) &
         df['Equipo_Atacante'].isin(equipo_atacante_sel) &
         df['Equipo_Defensor'].isin(equipo_defensor_sel)
     )
     if fase_sel is not None and 'Momento_Resultado_Atacante' in df.columns:
         condiciones = condiciones & df['Momento_Resultado_Atacante'].isin(fase_sel)
-    df_filtrado = df[condiciones]
-    if tipo_gol_sel is not None and 'GOL' in df_filtrado:
-        df_filtrado = df_filtrado[df_filtrado['GOL'].isin(tipo_gol_sel)]
-    return df_filtrado
+    if mitad_sel and 'Momento_Mitad' in df.columns:
+        condiciones = condiciones & df['Momento_Mitad'].isin(mitad_sel)
+    if franja_sel and 'Momento_Rango' in df.columns:
+        condiciones = condiciones & df['Momento_Rango'].isin(franja_sel)
+    if portero_defensor_sel is not None and 'Portero_Defensor' in df.columns:
+        condiciones = condiciones & df['Portero_Defensor'].isin(portero_defensor_sel)
+    if situacion_numerica_atac_sel is not None and 'Situacion_Numerica_Atacante' in df.columns:
+        condiciones = condiciones & df['Situacion_Numerica_Atacante'].isin(situacion_numerica_atac_sel)
+    if situacion_numerica_def_sel is not None and 'Situacion_Numerica_Defensor' in df.columns:
+        condiciones = condiciones & df['Situacion_Numerica_Defensor'].isin(situacion_numerica_def_sel)
+    if portero_ataca_sel is not None and 'Portero_Ataca' in df.columns:
+        condiciones = condiciones & df['Portero_Ataca'].isin(portero_ataca_sel)
+    if jugador_objetivo_sel is not None and 'Jugador_Objetivo' in df.columns:
+        condiciones = condiciones & df['Jugador_Objetivo'].isin(jugador_objetivo_sel)
+    if ejecucion_tipo_sel is not None and 'Ejecucion_Tipo' in df.columns:
+        condiciones = condiciones & df['Ejecucion_Tipo'].isin(ejecucion_tipo_sel)
+
+
+    return df[condiciones]
 
 # ========== PÁGINAS PRINCIPALES ==========
 

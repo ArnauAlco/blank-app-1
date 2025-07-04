@@ -116,24 +116,32 @@ pagina = st.sidebar.radio(
 # ---- FILTROS GENERALES ----
 st.sidebar.header("Filtros generales")
 
+if st.sidebar.button("🔄 Resetear todos los filtros"):
+    for key in list(st.session_state.keys()):
+        if key not in ("_uploaded_file_mgr_state",):  # Evita borrar cosas de streamlit interno
+            del st.session_state[key]
+    st.rerun()
+
+
 jornada_sel = st.sidebar.slider(
     "Jornada (rango)",
     min_value=jornada_min,
     max_value=jornada_max,
     value=(jornada_min, jornada_max),
-    step=1
+    step=1,
+    key="jornada_sel"
 )
-temporada_sel = st.sidebar.multiselect("Temporada", temporadas, default=list(temporadas))
-tipo_abp_sel = st.sidebar.multiselect("Tipo ABP", tipos_abp, default=list(tipos_abp))
+temporada_sel = st.sidebar.multiselect("Temporada", temporadas, default=list(temporadas), key="temporada_sel")
+tipo_abp_sel = st.sidebar.multiselect("Tipo ABP", tipos_abp, default=list(tipos_abp), key="tipo_abp_sel")
 if len(ejecucion_tipos) > 0:
     ejecucion_tipo_sel = st.sidebar.multiselect(
         "Tipo de ejecución",
         ejecucion_tipos,
-        default=list(ejecucion_tipos)
+        default=list(ejecucion_tipos),
+        key="ejecucion_tipo_sel"
     )
 else:
     ejecucion_tipo_sel = None
-
 
 # ---- FILTRO DE MITAD DEL PARTIDO ----
 if len(mitades_disponibles) > 0:
@@ -141,7 +149,7 @@ if len(mitades_disponibles) > 0:
         "Mitad del partido",
         mitades_disponibles,
         default=list(mitades_disponibles),
-        key="mitad_partido"
+        key="mitad_sel"
     )
 else:
     mitad_sel = []
@@ -168,17 +176,19 @@ franja_sel = st.sidebar.multiselect(
     "Franja(s) de tiempo",
     franjas_disponibles,
     default=franjas_disponibles,
-    key="franja_tiempo"
+    key="franja_sel"
 )
 
-equipo_atacante_sel = st.sidebar.multiselect("Equipo Atacante", equipos_atacantes, default=list(equipos_atacantes))
-equipo_defensor_sel = st.sidebar.multiselect("Equipo Defensor", equipos_defensores, default=list(equipos_defensores))
-jugador_sel = st.sidebar.multiselect("Jugador ejecutor", jugadores, default=list(jugadores))
+equipo_atacante_sel = st.sidebar.multiselect("Equipo Atacante", equipos_atacantes, default=list(equipos_atacantes), key="equipo_atacante_sel")
+equipo_defensor_sel = st.sidebar.multiselect("Equipo Defensor", equipos_defensores, default=list(equipos_defensores), key="equipo_defensor_sel")
+jugador_sel = st.sidebar.multiselect("Jugador ejecutor", jugadores, default=list(jugadores), key="jugador_sel")
+
 if len(jugadores_objetivo) > 0:
     jugador_objetivo_sel = st.sidebar.multiselect(
         "Jugador objetivo",
         jugadores_objetivo,
-        default=list(jugadores_objetivo)
+        default=list(jugadores_objetivo),
+        key="jugador_objetivo_sel"
     )
 else:
     jugador_objetivo_sel = None
@@ -187,35 +197,41 @@ if len(porteros_defensores) > 0:
     portero_defensor_sel = st.sidebar.multiselect(
         "Portero defensor",
         porteros_defensores,
-        default=list(porteros_defensores)
+        default=list(porteros_defensores),
+        key="portero_defensor_sel"
     )
 else:
     portero_defensor_sel = None
+
 if len(porteros_ataca) > 0:
     portero_ataca_sel = st.sidebar.multiselect(
         "Portero ataca",
         porteros_ataca,
-        default=list(porteros_ataca)
+        default=list(porteros_ataca),
+        key="portero_ataca_sel"
     )
 else:
     portero_ataca_sel = None
 
+tipo_tiro_sel = st.sidebar.multiselect("¿Acaba en tiro?", tipo_tiro, default=list(tipo_tiro), key="tipo_tiro_sel")
+tipo_gol_sel = st.sidebar.multiselect("¿Acaba en gol?", tipo_gol, default=list(tipo_gol), key="tipo_gol_sel")
 
-tipo_tiro_sel = st.sidebar.multiselect("¿Acaba en tiro?", tipo_tiro, default=list(tipo_tiro))
-tipo_gol_sel = st.sidebar.multiselect("¿Acaba en gol?", tipo_gol, default=list(tipo_gol))
 if len(fases_atacante) > 0:
-    fase_sel = st.sidebar.multiselect("Resultado atacante", fases_atacante, default=list(fases_atacante))
+    fase_sel = st.sidebar.multiselect("Resultado atacante", fases_atacante, default=list(fases_atacante), key="fase_atacante_sel")
 else:
     fase_sel = None
+
 if len(fases_defensor) > 0:
-    fase_sel = st.sidebar.multiselect("Resultado defensor", fases_defensor, default=list(fases_defensor))
+    fase_sel = st.sidebar.multiselect("Resultado defensor", fases_defensor, default=list(fases_defensor), key="fase_defensor_sel")
 else:
     fase_sel = None
+
 if len(situaciones_numericas_atac) > 0:
     situacion_numerica_atac_sel = st.sidebar.multiselect(
         "Situación numérica atacante",
         situaciones_numericas_atac,
-        default=list(situaciones_numericas_atac)
+        default=list(situaciones_numericas_atac),
+        key="situacion_numerica_atac_sel"
     )
 else:
     situacion_numerica_atac_sel = None
@@ -224,10 +240,12 @@ if len(situaciones_numericas_def) > 0:
     situacion_numerica_def_sel = st.sidebar.multiselect(
         "Situación numérica defensor",
         situaciones_numericas_def,
-        default=list(situaciones_numericas_def)
+        default=list(situaciones_numericas_def),
+        key="situacion_numerica_def_sel"
     )
 else:
     situacion_numerica_def_sel = None
+
 
 
 # ---- FUNCIONES DE FILTRADO ----
@@ -280,9 +298,9 @@ if pagina == "Dashboard general":
     k4.metric("Equipos defensores", df_pag['Equipo_Defensor'].nunique())
     k5.metric("Tiros", df_pag['Tiro'].str.upper().eq("SI").sum())
     if 'GOL' in df_pag.columns:
-        k5.metric("Goles", df_pag['GOL'].str.upper().eq("SI").sum())
+        k6.metric("Goles", df_pag['GOL'].str.upper().eq("SI").sum())
     else:
-        k5.metric("Goles", "—")
+        k6.metric("Goles", "—")
     st.markdown("---")
     
     # Gráficos principales
@@ -351,15 +369,17 @@ elif pagina == "Análisis equipos atacantes":
 
     # KPIs
     st.subheader("KPIs equipos atacantes")
-    k1, k2, k3, k4, k5 = st.columns(5)
-    k1.metric("Total ABP", len(df_pag))
-    k2.metric("Equipos atacantes", df_pag['Equipo_Atacante'].nunique())
-    k3.metric("Equipos defensores", df_pag['Equipo_Defensor'].nunique())
-    k4.metric("Tiros generados", df_pag['Tiro'].str.upper().eq("SI").sum())
+    k1, k2, k3, k4, k5, k6 = st.columns(6)
+    k1.metric("Total ABP (todas las acciones)", len(df))
+    k2.metric("Total ABP (según filtros)", len(df_pag))
+    k3.metric("Equipos atacantes", df_pag['Equipo_Atacante'].nunique())
+    k4.metric("Equipos defensores", df_pag['Equipo_Defensor'].nunique())
+    k5.metric("Tiros", df_pag['Tiro'].str.upper().eq("SI").sum())
     if 'GOL' in df_pag.columns:
-        k5.metric("Goles generados", df_pag['GOL'].str.upper().eq("SI").sum())
+        k6.metric("Goles", df_pag['GOL'].str.upper().eq("SI").sum())
     else:
-        k5.metric("Goles generados", "—")
+        k6.metric("Goles", "—")
+    st.markdown("---")
 
     st.markdown("---")
 
@@ -453,15 +473,17 @@ elif pagina == "Análisis equipos defensores":
 
     # KPIs
     st.subheader("KPIs equipos defensores")
-    k1, k2, k3, k4, k5 = st.columns(5)
-    k1.metric("Total ABP", len(df_pag))
-    k2.metric("Equipos defensores", df_pag['Equipo_Defensor'].nunique())
+    k1, k2, k3, k4, k5, k6 = st.columns(6)
+    k1.metric("Total ABP (todas las acciones)", len(df))
+    k2.metric("Total ABP (según filtros)", len(df_pag))
     k3.metric("Equipos atacantes", df_pag['Equipo_Atacante'].nunique())
-    k4.metric("Tiros recibidos", df_pag['Tiro'].str.upper().eq("SI").sum())
+    k4.metric("Equipos defensores", df_pag['Equipo_Defensor'].nunique())
+    k5.metric("Tiros", df_pag['Tiro'].str.upper().eq("SI").sum())
     if 'GOL' in df_pag.columns:
-        k5.metric("Goles recibidos", df_pag['GOL'].str.upper().eq("SI").sum())
+        k6.metric("Goles", df_pag['GOL'].str.upper().eq("SI").sum())
     else:
-        k5.metric("Goles recibidos", "—")
+        k6.metric("Goles", "—")
+    st.markdown("---")
 
     st.markdown("---")
 

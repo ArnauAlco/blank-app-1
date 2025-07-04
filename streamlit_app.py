@@ -273,11 +273,12 @@ if pagina == "Dashboard general":
 
     # KPIs
     st.subheader("KPIs generales")
-    k1, k2, k3, k4, k5 = st.columns(5)
-    k1.metric("Total ABP", len(df_pag))
-    k2.metric("Equipos atacantes", df_pag['Equipo_Atacante'].nunique())
-    k3.metric("Equipos defensores", df_pag['Equipo_Defensor'].nunique())
-    k4.metric("Tiros", df_pag['Tiro'].str.upper().eq("SI").sum())
+    k1, k2, k3, k4, k5, k6 = st.columns(6)
+    k1.metric("Total ABP (todas las acciones)", len(df))
+    k2.metric("Total ABP (según filtros)", len(df_pag))
+    k3.metric("Equipos atacantes", df_pag['Equipo_Atacante'].nunique())
+    k4.metric("Equipos defensores", df_pag['Equipo_Defensor'].nunique())
+    k5.metric("Tiros", df_pag['Tiro'].str.upper().eq("SI").sum())
     if 'GOL' in df_pag.columns:
         k5.metric("Goles", df_pag['GOL'].str.upper().eq("SI").sum())
     else:
